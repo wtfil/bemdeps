@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  * Ussage:
  *      bemdeps <params>
@@ -57,13 +58,13 @@ args = (function () {
 
 levels = args.l || args.levels;
 if (!levels || !levels.length) {
-    levels = 'blocks-develop blocks-common';
+    levels = 'blocks-desktop blocks-common';
     console.log('Default levels is: %s', levels);
 }
 
 tetchs = args.t || args.tetchs;
 if (!tetchs) {
-    tetchs = 'js css common.js priv.js bemhtml.js';
+    tetchs = 'js css priv.js bemhtml';
     console.log('Default tetchs is: %s', tetchs);
 }
 tetchsRegExpString = '\\.(' + tetchs.replace(/\s+/g, '|') + ')$';

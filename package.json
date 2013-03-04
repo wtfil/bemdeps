@@ -1,17 +1,19 @@
 {
     "name": "bemdeps",
-    "version": "0.0.1",
+    "version": "0.0.4",
+    "preferGlobal": "true",
     "description": "",
     "keywords": [
         "bem",
         "jsdoc",
         "deps"
     ],
+    "bin": {"bemdeps": "index.js"},
     "author": {
-        "name": "Evgeniy Filatov",
+        "name": "Evgeniy Filatov"
     },
     "dependencies": {
-        "vow": ">= 0.1.10",
+        "vow": ">= 0.1.10"
     },
     "devDependencies": {
     },
