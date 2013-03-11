@@ -13,6 +13,7 @@ options
 -----------
     -l --levels bem levels (default is "blocks-desktop and blocks-common")
     -t --tetchs bem tetchs (default is "css js bemhtml")
+    -f --forse will replace original deps.js file without extending
 
 example
 -----------
@@ -21,8 +22,16 @@ example
  * @deps b-block1, b-block2 elem1 elem2, !b-block3 mod_val
  */
 ````
+is equal to
 
-will convenrts into
+````javascript
+/**
+ * @shouldDeps b-block1, b-block2 elem1 elem2
+ * @mustDeps b-block3 mod_val
+ */
+````
+
+and will convenrts into
 
 ````javascript
 ({
@@ -52,5 +61,3 @@ will convenrts into
 usage
 -----------
     bemdeps -l blocks-desktop blocks-touch blocks-common -t js css
-
-

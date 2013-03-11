@@ -5,8 +5,10 @@
  *          -l --levels bem levels
  *          -c --compact making deps more compact
  *          -t --tetchs bem tetchs
+ *          -f --forse replacing origin deps.js file
  */
 var fs = require('fs'),
+    vm = require('vm'),
     cwd = process.cwd(),
     Vow = require('vow'),
     skippFilesRegExp = /(^(examples|tests))|(\.[\w\.]+)$/,
@@ -68,6 +70,55 @@ if (!tetchs) {
     console.log('Default tetchs is: %s', tetchs);
 }
 tetchsRegExpString = '\\.(' + tetchs.replace(/\s+/g, '|') + ')$';
+
+function Deps(block) {
+    if (block instanceof Object) {
+        this._blockName = block.block;
+        this._elems = block.elems || [];
+        this._mods = block.mods || {};
+    } else {
+        this._blockName = block;
+        this._elems = [];
+        this._mods = {};
+    }
+    this._mustDeps = false;
+};
+
+Deps.prototype = {
+    valueOf: function () {
+        var deps = {};
+
+        if (this._blockName) {
+            deps.block = this._blockName;
+        }
+
+        if (this._elems.length) {
+            deps.elems = this._elems;
+        }
+
+        if (Object.keys(this._mods).length) {
+            deps.mods = this._mods;
+        }
+
+        return deps;
+    },
+
+    pushElem: function (elem) {
+        uniquePush(this._elems, elem);
+    },
+
+    pushMods: function (modName, modVal) {
+        this._mods[modName] = modVal;
+    },
+
+    isMust: function () {
+        return this._mustDeps;
+    },
+
+    setMust: function () {
+        this._mustDeps = true;
+    }
+};
 
 
 function uniquePush(arr, val) {
@@ -241,9 +292,38 @@ function getTargets(level) {
     return defer;
 }
 
+function mergeDeps(allDeps) {
+    var mustDeps = [],
+        shouldDeps = [],
+        resut = {};
+
+    Object.keys(allDeps).forEach(function (key) {
+        var deps = allDeps[key];
+
+        if (deps.isMust()) {
+            mustDeps.push(deps.valueOf());
+        } else {
+            shouldDeps.push(deps.valueOf());
+        }
+    });
+
+    if (!mustDeps.length && !shouldDeps.length) {
+        return null;
+    }
+
+    if (mustDeps.length) {
+        resut.mustDeps = mustDeps;
+    }
+    if (shouldDeps.length) {
+        resut.shouldDeps = shouldDeps;
+    }
+
+    return resut;
+}
+
 
 parseDeps = (function () {
-    var parseRE = /\*\s*@deps\s+(.+)\s*$/,
+    var parseRE = /\*\s*@(must|should)?deps\s+(.+)\s*$/i,
         splitBlocksRE = /\s*,\s*/,
         splitComponentsRE = /\s+/,
         blockRE = /^(i|b|l)\-\w+/,
@@ -252,67 +332,26 @@ parseDeps = (function () {
         getCurrentBlock = function (allDeps, name) {
             allDeps[name] = allDeps[name] || new Deps(name);
             return allDeps[name];
-        },
-        Deps = function (blockName) {
-            this._blockName = blockName;
-            this._elems = [];
-            this._mods = {};
-            this._mustDeps = false;
         };
-
-    Deps.prototype = {
-        valueOf: function () {
-            var deps = {};
-
-            if (this._blockName) {
-                deps.block = this._blockName;
-            }
-
-            if (this._elems.length) {
-                deps.elems = this._elems;
-            }
-
-            if (Object.keys(this._mods).length) {
-                deps.mods = this._mods;
-            }
-
-            return deps;
-        },
-
-        pushElem: function (elem) {
-            uniquePush(this._elems, elem);
-        },
-
-        pushMods: function (modName, modVal) {
-            this._mods[modName] = modVal;
-        },
-
-        isMust: function () {
-            return this._mustDeps;
-        },
-
-        setMust: function (mustDeps) {
-            this._mustDeps = mustDeps;
-        }
-    };
 
     return function (source) {
         var allDeps = {},
-            resut = {},
-            mustDeps = [],
-            shouldDeps = [];
+            resut = {};
 
         source.split('\n').forEach(function (line) {
             var match = line.match(parseRE);
 
             if (match) {
-                match[1].split(splitBlocksRE).forEach(function (components) {
+                match[2].split(splitBlocksRE).forEach(function (components) {
                     var currentBlock,
-                        mustDeps = false,
+                        mustDeps = match[1] === 'must',
                         modMatch;
 
                     components.split(splitComponentsRE).forEach(function (component) {
                         if (/\!/.test(component)) {
+                            if (match[1] === 'should') {
+                                console.error('Warning: ussing ! in @shouldDeps "%s"', line.replace(/\s*\*\s*/, ''));
+                            }
                             component = component.replace(/\!/g, '');
                             mustDeps = true;
                         }
@@ -336,37 +375,49 @@ parseDeps = (function () {
                         }
                     });
 
-                    if (currentBlock) {
-                        currentBlock.setMust(mustDeps);
+                    if (currentBlock && mustDeps) {
+                        currentBlock.setMust();
                     }
                 });
             }
         });
 
-        Object.keys(allDeps).forEach(function (key) {
-            var deps = allDeps[key];
 
-            if (deps.isMust()) {
-                mustDeps.push(deps.valueOf());
-            } else {
-                shouldDeps.push(deps.valueOf());
-            }
-        });
-
-        if (!mustDeps.length && !shouldDeps.length) {
-            return null;
-        }
-
-        if (mustDeps.length) {
-            resut.mustDeps = mustDeps;
-        }
-        if (shouldDeps.length) {
-            resut.shouldDeps = shouldDeps;
-        }
-
-        return resut;
+        return mergeDeps(allDeps);
     };
 }());
+
+function extendDeps(originalDeps, newDeps) {
+    var names = [];
+
+    [originalDeps, newDeps].forEach(function (depsObj) {
+        ['mustDeps', 'shouldDeps'].forEach(function (keyName) {
+            (depsObj[keyName] || []).forEach(function (deps) {
+                var current;
+
+                if (!names[deps.block]) {
+                    current = names[deps.block] = new Deps(deps);
+                } else {
+                    current = names[deps.block];
+                    if (deps.elems) {
+                        deps.elems.forEach(current.pushElem.bind(current));
+                    }
+                    if (deps.mods) {
+                        Object.keys(deps.mods).forEach(function (key) {
+                            current.pushMods(key, deps.mods[key]);
+                        });
+                    }
+                }
+                if (keyName === 'mustDeps') {
+                    current.setMust();
+                }
+            });
+            
+        });
+    });
+
+    return mergeDeps(names);
+}
 
 /**
  * making deps.js file
@@ -376,8 +427,21 @@ parseDeps = (function () {
 function makeDeps(level, target) {
     var path = level + '/' + target,
         sources = [],
-        compact = args.c || args.compact;
+        originalDepsDefer = Vow.promise(),
+        forse = args.f || args.forse,
+        originalDeps;
     
+    fs.readFile(path + '.deps.js', 'utf8', function (err, source) {
+        if (!err) {
+            try { 
+                originalDeps = vm.runInThisContext(source);
+            } catch (err) {
+                console.error('Warning: error in deps file', err);
+            }
+        }
+        originalDepsDefer.fulfill();
+    });
+
     Vow.all(
         tetchs.split(/\s+/).map(function (tetch) {
             var defer = Vow.promise();
@@ -388,28 +452,25 @@ function makeDeps(level, target) {
                 defer.fulfill();
             });
             return defer;
-        })
+        }).concat(originalDepsDefer)
     ).then(function () {
         var deps = parseDeps(sources.join('\n')),
             output;
 
         if (deps) {
-            
-            // dont line this
-            if (compact) {
-                output = [];
-                ['mustDeps', 'shouldDeps'].forEach(function (key) {
-                    if (deps[key]) {
-                        output.push(key + ': [\n' + deps[key].map(function (line) {
-                            return '    ' + JSON.stringify(line);
-                        }).join(',\n') + '\n]');
-                    }
-                });
-                output = '{\n' + output.join(',\n') + '\n}';
-
+            if (!forse && originalDeps) {
+                if (originalDeps.origin) {
+                    deps = extendDeps(originalDeps.origin, deps);
+                    deps.origin = originalDeps.origin;
+                } else {
+                    deps = extendDeps(originalDeps, deps);
+                    deps.origin = originalDeps;
+                }
             } else {
-                output = JSON.stringify(deps, null, 4);
+                deps.origin = {};
             }
+            
+            output = JSON.stringify(deps, null, 4);
             fs.writeFile(path + '.deps.js', '(' + output + ')\n');
         }
     }).done();
