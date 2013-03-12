@@ -436,7 +436,7 @@ function makeDeps(level, target) {
             try { 
                 originalDeps = vm.runInThisContext(source);
             } catch (err) {
-                console.error('Warning: error in deps file', err);
+                console.error('Warning: error in origin deps.js file \033[1;31m%s\033[0m in file \033[1;36m%s.deps.js\033[0m', err, path);
             }
         }
         originalDepsDefer.fulfill();
