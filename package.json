@@ -1,6 +1,6 @@
 {
     "name": "bemdeps",
-    "version": "0.0.6",
+    "version": "0.0.7",
     "preferGlobal": "true",
     "description": "",
     "keywords": [
@@ -13,7 +13,7 @@
         "name": "Evgeniy Filatov"
     },
     "dependencies": {
-        "vow": ">= 0.1.10"
+        "vow": "0.1.10"
     },
     "devDependencies": {
     },
