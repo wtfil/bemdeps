@@ -8,6 +8,9 @@ or
 
     npm install -g bemdeps
 
+usage
+-----------
+    bemdeps -l blocks-desktop blocks-touch blocks-common -t js css
 
 options
 -----------
@@ -31,7 +34,7 @@ is equal to
  */
 ````
 
-and will convenrts into
+and will be converted into
 
 ````javascript
 ({
@@ -58,6 +61,3 @@ and will convenrts into
 })
 ````
 
-usage
------------
-    bemdeps -l blocks-desktop blocks-touch blocks-common -t js css
